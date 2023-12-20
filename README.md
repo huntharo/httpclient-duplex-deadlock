@@ -12,7 +12,7 @@ Other than this issue, `AllowDuplex` works fine on HTTP2.
 
 ## Video of Issue and Fix
 
-https://youtu.be/UN2oHXhKQf0?si=MY5wmVA0xdsGTahe
+[![Reproduction of the deadlock issue in HttpClient and demonstration of possible fixes](https://img.youtube.com/vi/UN2oHXhKQf0/0.jpg)](https://www.youtube.com/watch?v=UN2oHXhKQf0)
 
 ## Related Concern
 
