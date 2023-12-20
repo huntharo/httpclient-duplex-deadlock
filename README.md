@@ -1,6 +1,6 @@
 # Overview
 
-This is an SSCCE (Short, Self-Contained, Correct (Compilable), Example)[http://www.sscce.org/] of a deadlock in (DotNet Core 8)[https://github.com/dotnet/runtime] when using a custom `Content` object with `AllowDuplex=true` over HTTP2.
+This is an SSCCE [Short, Self-Contained, Correct (Compilable), Example](http://www.sscce.org/) of a deadlock in [DotNet Core 8](https://github.com/dotnet/runtime) when using a custom `Content` object with `AllowDuplex=true` over HTTP2.
 
 The problem is that `HttpClient` in (Http2Connection.cs/SendHeadersAsync)[] will not force a flush to write new headers on the entire connection (not just the stream) except in these cases:
 1. There is a half-duplex request on the same HTTP2 connection (half-duplex meaning the entire Request Content data is available before the request is sent)
@@ -9,6 +9,10 @@ The problem is that `HttpClient` in (Http2Connection.cs/SendHeadersAsync)[] will
 3. `Headers.ExpectContinue` is `true`, which causes `mustFlush` to be set to true here: https://github.com/dotnet/runtime/blob/2f1fbb009cccc137092429e2a7f367ad7bed92b9/src/libraries/System.Net.Http/src/System/Net/Http/SocketsHttpHandler/Http2Connection.cs#L1999
 
 Other than this issue, `AllowDuplex` works fine on HTTP2.
+
+## Video of Issue and Fix
+
+[![Reproduction of the deadlock issue in HttpClient and demonstration of possible fixes](https://img.youtube.com/vi/UN2oHXhKQf0/0.jpg)](https://www.youtube.com/watch?v=UN2oHXhKQf0)
 
 ## Related Concern
 
