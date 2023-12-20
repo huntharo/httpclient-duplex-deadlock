@@ -1,0 +1,30 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "HttpClient (console)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/httpclient/bin/Debug/net8.0/httpclient",
+      "args": [],
+      "cwd": "${workspaceFolder}/httpclient",
+      "stopAtEntry": false,
+      "console": "internalConsole"
+    },
+    {
+      "name": "Server (console)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/server/bin/Debug/net8.0/server",
+      "args": [],
+      "cwd": "${workspaceFolder}/server",
+      "stopAtEntry": false,
+      "console": "internalConsole"
+    },
+  ]
+}
