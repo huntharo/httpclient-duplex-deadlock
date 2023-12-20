@@ -1,5 +1,5 @@
-#define USE_SOCKETS_HTTP_HANDLER
-#define USE_INSECURE_CIPHER_FOR_WIRESHARK
+// #define USE_SOCKETS_HTTP_HANDLER
+// #define USE_INSECURE_CIPHER_FOR_WIRESHARK
 
 #if USE_SOCKETS_HTTP_HANDLER
 using System.Net.Security;
@@ -8,8 +8,9 @@ using System.Net.Security;
 /// <summary>
 /// Use an insecure cipher to allow Wireshark to decrypt the traffic, if desired
 /// </summary>
-public static class SetupHttpClient {
-  #if USE_SOCKETS_HTTP_HANDLER
+public static class SetupHttpClient
+{
+#if USE_SOCKETS_HTTP_HANDLER
   private static SslClientAuthenticationOptions sslOptions = new SslClientAuthenticationOptions
   {
     RemoteCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) =>
@@ -31,23 +32,19 @@ public static class SetupHttpClient {
     },
     // CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck,
     ApplicationProtocols = new List<SslApplicationProtocol> { SslApplicationProtocol.Http2 },
-  #if USE_INSECURE_CIPHER_FOR_WIRESHARK
+#if USE_INSECURE_CIPHER_FOR_WIRESHARK
     // WireShark needs this to decrypt the traffic
     CipherSuitesPolicy = new CipherSuitesPolicy(new List<TlsCipherSuite> { TlsCipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA256 })
-  #endif
+#endif
   };
-  private static SocketsHttpHandler _handler = new SocketsHttpHandler {
+  private static SocketsHttpHandler _handler = new SocketsHttpHandler
+  {
     SslOptions = sslOptions,
     PooledConnectionIdleTimeout = TimeSpan.FromMinutes(15),
   };
-  private static HttpClient _client = new HttpClient(_handler, true)
+#else
+  private static HttpClientHandler _handler = new HttpClientHandler()
   {
-    DefaultRequestVersion = new Version(2, 0),
-    Timeout = TimeSpan.FromMinutes(15),
-
-  };
-  #else
-  private static HttpClientHandler _handler = new HttpClientHandler() {
     ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) =>
     {
       // If the certificate is a valid, signed certificate, return true.
@@ -64,12 +61,21 @@ public static class SetupHttpClient {
 
       // In all other cases, return false.
       return false;
-    };
-  }
-  #endif
+    },
+  };
+#endif
 
-  public static HttpClient Client {
-    get {
+  private static HttpClient _client = new HttpClient(_handler, true)
+  {
+    DefaultRequestVersion = new Version(2, 0),
+    Timeout = TimeSpan.FromMinutes(15),
+
+  };
+
+  public static HttpClient Client
+  {
+    get
+    {
       return _client;
     }
   }
