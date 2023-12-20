@@ -13,35 +13,39 @@ ThreadPool.SetMinThreads(100, 100);
 var TEST_MODE = Environment.GetEnvironmentVariable("TEST_MODE") ?? "complete-deadlock-many-requests";
 
 // Validate and print info about which mode was selected
-if (TEST_MODE == "complete-deadlock-one-request")
+if (TEST_MODE == "rippin")
 {
-  Console.WriteLine("TEST_MODE: complete-deadlock-one-request");
+  Console.WriteLine("TEST_MODE: rippin");
+}
+else if (TEST_MODE == "complete-deadlock-one-request")
+{
+  if (TEST_MODE != "rippin") Console.WriteLine("TEST_MODE: complete-deadlock-one-request");
 }
 else if (TEST_MODE == "complete-deadlock-one-request-with-headers")
 {
-  Console.WriteLine("TEST_MODE: complete-deadlock-one-request-with-headers");
+  if (TEST_MODE != "rippin") Console.WriteLine("TEST_MODE: complete-deadlock-one-request-with-headers");
 }
 else if (TEST_MODE == "complete-deadlock-many-requests")
 {
-  Console.WriteLine("TEST_MODE: complete-deadlock-many-requests");
+  if (TEST_MODE != "rippin") Console.WriteLine("TEST_MODE: complete-deadlock-many-requests");
 }
 else if (TEST_MODE == "partial-deadlock-many-requests")
 {
-  Console.WriteLine("TEST_MODE: partial-deadlock-many-requests");
+  if (TEST_MODE != "rippin") Console.WriteLine("TEST_MODE: partial-deadlock-many-requests");
 }
 else if (TEST_MODE == "partial-deadlock-with-half-duplex-requests")
 {
-  Console.WriteLine("TEST_MODE: partial-deadlock-with-half-duplex-requests");
+  if (TEST_MODE != "rippin") Console.WriteLine("TEST_MODE: partial-deadlock-with-half-duplex-requests");
 }
 else
 {
-  Console.WriteLine("TEST_MODE: unknown");
+  if (TEST_MODE != "rippin") Console.WriteLine("TEST_MODE: unknown");
   // Print the allowed values
-  Console.WriteLine("TEST_MODE options: complete-deadlock-one-request, complete-deadlock-one-request-with-headers, complete-deadlock-many-requests, partial-deadlock-many-requests, partial-deadlock-with-half-duplex-requests");
+  if (TEST_MODE != "rippin") Console.WriteLine("TEST_MODE options: rippin, complete-deadlock-one-request, complete-deadlock-one-request-with-headers, complete-deadlock-many-requests, partial-deadlock-many-requests, partial-deadlock-with-half-duplex-requests");
   return;
 }
-
-var duplexTaskCount = TEST_MODE == "complete-deadlock-one-request" || TEST_MODE == "complete-deadlock-one-request-with-headers" ? 1 : 10;
+var rippin = TEST_MODE == "rippin";
+var duplexTaskCount = TEST_MODE == "complete-deadlock-one-request" || TEST_MODE == "complete-deadlock-one-request-with-headers" ? 1 : (rippin ? 20 : 10);
 var sendHalfDuplexRequestsToo = TEST_MODE == "partial-deadlock-with-half-duplex-requests";
 var sendLotsOfHeaders = TEST_MODE == "partial-deadlock-many-requests" || TEST_MODE == "complete-deadlock-one-request-with-headers";
 
@@ -55,14 +59,17 @@ for (int j = 0; j < duplexTaskCount; j++)
 
   duplexTasks.Add(Task.Run(async () =>
   {
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < (rippin ? 10000000 : 10); i++)
     {
       await HandleSingleRequest(offset + i);
 
-      await Task.Delay(TimeSpan.FromSeconds(1));
+      if (!rippin)
+      {
+        await Task.Delay(TimeSpan.FromSeconds(1));
+      }
     }
 
-    Console.WriteLine($"{offset}: Finished with requests");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{offset}: Finished with requests");
   }));
 }
 
@@ -97,18 +104,22 @@ var halfDuplexTask = sendHalfDuplexRequestsToo ? Task.Run(async () =>
     }
   }
 
-  Console.WriteLine("Half Duplex: Finished with requests");
+  if (TEST_MODE != "rippin") Console.WriteLine("Half Duplex: Finished with requests");
 }) : Task.CompletedTask;
 
 await Task.WhenAll(duplexTasks);
 cts.Cancel();
 await Task.WhenAll(halfDuplexTask, whereAmITask);
 
-Console.WriteLine($"Total Requests: {totalRequestCount}");
-Console.WriteLine($"Total Time: {sw.Elapsed.TotalSeconds} seconds");
+if (TEST_MODE != "rippin") Console.WriteLine($"Total Requests: {totalRequestCount}");
+if (TEST_MODE != "rippin") Console.WriteLine($"Total Time: {sw.Elapsed.TotalSeconds} seconds");
 
 // Indicate what happened
-if (TEST_MODE == "complete-deadlock-one-request")
+if (TEST_MODE == "rippin")
+{
+  Console.WriteLine("TEST_MODE: rippin");
+}
+else if (TEST_MODE == "complete-deadlock-one-request")
 {
   Console.WriteLine("TEST_MODE: complete-deadlock-one-request");
   Console.WriteLine("This started 1 duplex request, but did not send tons of headers to force a flush.");
@@ -155,47 +166,47 @@ async Task HandleSingleRequest(int myRequestId)
     }
     // request.Headers.Add("Date", DateTime.UtcNow.ToString("R"));
 
-    Console.WriteLine($"{myRequestId}: Sending request");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{myRequestId}: Sending request");
 
     using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
 
     var requestTask = WriteRequestAsync(duplexContent, myRequestId);
     var responseTask = ReadResponseAsync(response, myRequestId);
 
-    Console.WriteLine($"{myRequestId}: Received response headers");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{myRequestId}: Received response headers");
 
     await Task.WhenAll(
       responseTask,
       requestTask
     );
 
-    Console.WriteLine($"{myRequestId}: Finished reading response and writing request");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{myRequestId}: Finished reading response and writing request");
 }
 
 async Task ReadResponseAsync(HttpResponseMessage response, int i)
 {
     if(!response.IsSuccessStatusCode)
     {
-      Console.WriteLine($"{i}: Error: {response.StatusCode}");
+      if (TEST_MODE != "rippin") Console.WriteLine($"{i}: Error: {response.StatusCode}");
       throw new Exception($"{i}: Error: {response.StatusCode}");
     }
 
-    Console.WriteLine($"{i}: Got response status code: {response.StatusCode}");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{i}: Got response status code: {response.StatusCode}");
 
     using (var responseContentReader = new StreamReader(await response.Content.ReadAsStreamAsync(), Encoding.UTF8, leaveOpen: true))
     {
         var responseContent = await responseContentReader.ReadToEndAsync();
-        // Console.WriteLine($"{i}: Response: {responseContent}");
+        if (TEST_MODE != "rippin") Console.WriteLine($"{i}: Response: {responseContent}");
     }
 
-    Console.WriteLine($"{i}: Finished reading response");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{i}: Finished reading response");
 }
 
 async Task WriteRequestAsync(HttpDuplexContent duplexContent, int i)
 {
     using Stream requestStream = await duplexContent.WaitForStreamAsync();
 
-    Console.WriteLine($"{i}: Got request stream");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{i}: Got request stream");
 
     using (var requestContentWriter = new StreamWriter(requestStream, Encoding.UTF8, bufferSize: 1024, leaveOpen: true))
     {
@@ -204,11 +215,11 @@ async Task WriteRequestAsync(HttpDuplexContent duplexContent, int i)
       requestContentWriter.Close();
     }
 
-    Console.WriteLine($"{i}: Finished writing request data");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{i}: Finished writing request data");
 
     duplexContent.Complete();
 
-    Console.WriteLine($"{i}: Marked request content complete");
+    if (TEST_MODE != "rippin") Console.WriteLine($"{i}: Marked request content complete");
 }
 
 async Task HandleHalfDuplexRequest() {
@@ -220,14 +231,14 @@ async Task HandleHalfDuplexRequest() {
     request.Headers.Add("Date", DateTime.UtcNow.ToString("R"));
     request.Content = new StringContent("Simple Post");
 
-    Console.WriteLine($"Half Duplex: Sending request");
+    if (TEST_MODE != "rippin") Console.WriteLine($"Half Duplex: Sending request");
 
     using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
 
-    Console.WriteLine($"Half Duplex: Received response headers");
+    if (TEST_MODE != "rippin") Console.WriteLine($"Half Duplex: Received response headers");
 
     using var responseContentReader = new StreamReader(await response.Content.ReadAsStreamAsync(), Encoding.UTF8, leaveOpen: true);
     var responseContent = await responseContentReader.ReadToEndAsync();
 
-    Console.WriteLine($"Half Duplex: Finished reading response and writing request");
+    if (TEST_MODE != "rippin") Console.WriteLine($"Half Duplex: Finished reading response and writing request");
 }

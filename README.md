@@ -1,4 +1,16 @@
-# Overview
+# Status - Workaround
+
+The issue has a workaround, although it isn't a great experience to discover that workaround.  A proposal has been made to add / improve tests to document and preseve this behavior if it is indeed intentional (the tests only test the first request and thus this is untested as the second request on the same connection is where the issue starts).
+
+Issue report: https://github.com/dotnet/runtime/issues/96223
+
+Suggested workaround: https://github.com/dotnet/runtime/issues/30295#issuecomment-516210081
+
+Testing the workaround locally:
+
+`USE_DEADLOCK_FIX=true TEST_MODE=complete-deadlock-one-request dotnet run --project httpclient`
+
+# Overview - HttpClient Deadlock with AllowDuplex=true over HTTP2
 
 This is an SSCCE [Short, Self-Contained, Correct (Compilable), Example](http://www.sscce.org/) of a deadlock in [DotNet Core 8](https://github.com/dotnet/runtime) when using a custom `Content` object with `AllowDuplex=true` over HTTP2.
 
@@ -97,3 +109,56 @@ However, a more narrow fix is to add in `mustFlush: ... || AllowDuplex` here: ht
    3. Set a breakpoint on the first line of `SendHeadersAsync`
    4. Start the `httpclient` project using the debug configuration `HttpClient (console)`
    5. Confirm that the breakpoint in `SendHeadersAsync` is red (if it's gray the code was changed but the library was not recompiled, or disabling optimization was missed)
+
+# Secondary Issue - Lack of Thread Safety in Kestrel Response
+
+A secondary issue that can be reproduced with this repository is the lack of thread safety that can lead to Kestrel sending a `DATA` frame before a `HEADERS` frame AND not throwing an exception in that case.
+
+Instead only the client throws an exception when it sees the `DATA` frame at a time when it was expecting a `HEADERS` frame.  Additionally, `HttpClient` provides only generic info about this as a `HttpProtocolError` under `HttpRequestException` and does not indicate that the `DATA` frame was sent before the `HEADERS` frame, which would make finding the problem easier.
+
+## Take Away
+
+Perhaps the documentation can be improved here to indicate that `HttpResponse` is not thread safe and can lead to data corruption if accessed from multiple threads.  It would be nice to have a specific mention of the `DATA` frame being sent before the `HEADERS` frame as a possible result of accessing `HttpResponse` from multiple threads.
+
+## Docs for ASP.NET Core (Kestrel)
+
+- `HttpContext` docs DO indicate that it is not thread safe and note that data can become corrupted if accessed from multiple threads:
+  - https://learn.microsoft.com/en-us/aspnet/core/fundamentals/use-http-context?view=aspnetcore-8.0
+- `HttpResponse` docs DO NOT indicate that it is not thread safe:
+  - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httpresponse?view=aspnetcore-8.0
+- `HttpResponse.StartAsync` docs DO NOT indicate that it is not thread safe:
+  - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httpresponse.startasync?view=aspnetcore-8.0
+
+## Repro Steps
+
+1. `PROTOCOL_ERROR_TRIGGER=true dotnet run --project server`
+2. `TEST_MODE=rippin dotnet run --project httpclient`
+3. Wait a few seconds to a few minutes or hours
+4. Observe the exception in the `httpclient` terminal
+
+## Exception
+
+```log
+TEST_MODE: rippin
+Unhandled exception. System.Net.Http.HttpRequestException: The HTTP/2 server sent invalid data on the connection. HTTP/2 error code 'PROTOCOL_ERROR' (0x1). (HttpProtocolError)
+ ---> System.Net.Http.HttpProtocolException: The HTTP/2 server sent invalid data on the connection. HTTP/2 error code 'PROTOCOL_ERROR' (0x1). (HttpProtocolError)
+   at System.Net.Http.Http2Connection.ThrowRequestAborted(Exception innerException)
+   at System.Net.Http.Http2Connection.Http2Stream.CheckResponseBodyState()
+   at System.Net.Http.Http2Connection.Http2Stream.TryEnsureHeaders()
+   at System.Net.Http.Http2Connection.Http2Stream.ReadResponseHeadersAsync(CancellationToken cancellationToken)
+   at System.Net.Http.Http2Connection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.Http2Connection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.Http2Connection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.Http2Connection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   --- End of inner exception stack trace ---
+   at System.Net.Http.Http2Connection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at Program.<>c__DisplayClass0_0.<<<Main>$>g__HandleSingleRequest|2>d.MoveNext() in /Users/huntharo/pwrdrvr/httpclient-duplex-deadlock/httpclient/Program.cs:line 171
+--- End of stack trace from previous location ---
+   at Program.<>c__DisplayClass0_1.<<<Main>$>b__6>d.MoveNext() in /Users/huntharo/pwrdrvr/httpclient-duplex-deadlock/httpclient/Program.cs:line 64
+--- End of stack trace from previous location ---
+   at Program.<Main>$(String[] args) in /Users/huntharo/pwrdrvr/httpclient-duplex-deadlock/httpclient/Program.cs:line 110
+   at Program.<Main>(String[] args)
+```

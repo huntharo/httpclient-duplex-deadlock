@@ -11,6 +11,8 @@ public class HttpDuplexContent : HttpContent
   private readonly TaskCompletionSource<Stream> _waitForStream;
   private TaskCompletionSource? _waitForCompletion;
 
+  private static bool _useDeadlockFix = Environment.GetEnvironmentVariable("USE_DEADLOCK_FIX") == "true";
+
   public HttpDuplexContent()
   {
     _waitForStream = new TaskCompletionSource<Stream>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -24,6 +26,12 @@ public class HttpDuplexContent : HttpContent
 
   protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
   {
+    // This forces the headers to be sent, avoiding the deadlock
+    // https://github.com/dotnet/runtime/issues/30295#issuecomment-516210081
+    if (_useDeadlockFix)
+    {
+      await stream.FlushAsync();
+    }
     _waitForCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     _waitForStream.SetResult(stream);
     await _waitForCompletion.Task;
