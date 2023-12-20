@@ -10,6 +10,10 @@ The problem is that `HttpClient` in (Http2Connection.cs/SendHeadersAsync)[] will
 
 Other than this issue, `AllowDuplex` works fine on HTTP2.
 
+## Video of Issue and Fix
+
+https://youtu.be/UN2oHXhKQf0?si=MY5wmVA0xdsGTahe
+
 ## Related Concern
 
 First, it is ok / wise to batch up requests before sending them to the server.  But, there needs to be a periodic flush to clear any pending data.  It does not seem acceptable to leave data in a send buffer indefinitely, which is the case here.
